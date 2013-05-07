@@ -24,8 +24,7 @@
 #define INTERRUPT_TIME 1 //ms
 #define SAMPLE_TIME 1 //ms
 
-#define INITIAL_SETPOINT 1500
-#define INITIAL_LOADSENSE 500
+#define INITIAL_SETPOINT 1500 //psi
 
 double pidInput = 0;
 double pidSetpoint = 0;
@@ -35,7 +34,6 @@ double pidI = 0;
 double pidD = 0;
 
 boolean changeSetpointFlag = false; //if switch is pressed
-boolean changeLoadSenseFlag = false;//if switch is pressed 
 
 unsigned long printTimer = 0;
 boolean serialPrintFlag = false;
@@ -75,8 +73,8 @@ void loop()
   Interface();
   if (serialPrintFlag == true)
   {
-    //Print_Info_Seg();
-    //Print_Info_Ser();
+    Print_Info_Seg();
+    Print_Info_Ser();
     serialPrintFlag = false;
   }
 }//end loop()
@@ -119,34 +117,18 @@ void Interface()
   //for setpoint switches
   if( changeSetpointFlag == false && digitalRead(SETPOINT_PLUS_PIN) == HIGH )
   {
-    MController.AddToSetpoint(50);//pidSetpoint += 50;
+    MController.AddToSetpoint(50);
     changeSetpointFlag = true;
   }
   else if( changeSetpointFlag == false && digitalRead(SETPOINT_MINUS_PIN) == HIGH )
   {
-    MController.AddToSetpoint(-50);//pidSetpoint -= 50;
+    MController.AddToSetpoint(-50);
     changeSetpointFlag = true;
   }
   else if(digitalRead(SETPOINT_PLUS_PIN) == LOW && digitalRead(SETPOINT_MINUS_PIN) == LOW)
   {
     changeSetpointFlag = false;
   }
-  /*
-  if( changeLoadSenseFlag == false && digitalRead(LOADSENSE_PLUS_PIN) == HIGH )
-  {
-    MController.AddToSetpoint(50);//pidSetpoint += 50;
-    changeLoadSenseFlag = true;
-  }
-  else if( changeLoadSenseFlag == false && digitalRead(LOADSENSE_MINUS_PIN) == HIGH )
-  {
-    MController.AddToSetpoint(-50);//pidSetpoint -= 50;
-    changeLoadSenseFlag = true;
-  }
-  else if(digitalRead(LOADSENSE_PLUS_PIN) == LOW && digitalRead(LOADSENSE_MINUS_PIN) == LOW)
-  {
-    changeLoadSenseFlag = false;
-  }
-  */
 }//end Interface()
 
 
