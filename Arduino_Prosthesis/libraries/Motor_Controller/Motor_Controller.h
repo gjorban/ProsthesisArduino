@@ -1,5 +1,5 @@
-#ifndef __MOTOR_CONTROLLER_2_H_
-#define __MOTOR_CONTROLLER_2_H_
+#ifndef __MOTOR_CONTROLLER_H_
+#define __MOTOR_CONTROLLER_H_
 
 #include <Arduino.h>
 #include <PID_v1.h>
@@ -70,4 +70,4 @@ class MotorController
 	static void WrapperForMarkConnectionDirty();
 	static MotorController* sMotorCont;
 };
-#endif __MOTOR_CONTROLLER_2_H_
+#endif __MOTOR_CONTROLLER_H_

@@ -1,135 +1,134 @@
-/*
-Basic Controlling Code
-November 23 2012
-Thomas Watanabe
-Acknowledgements: PID Library by Brett Beauregard
-*/
-
+#include <pot_box.h>
+#include <Wire.h>
+#include <MsTimer2.h>
 #include <PID_v1.h>
+#include <Motor_Controller.h>
 
-//global variables
-//pins
-int powerswitch = 2;    //hook up powerswitch to digital pin 2
-int targetpot = 2;  //hook up pressure controlling pin to analog pin 2
-int kppot = 3;      //hook up potentiometer for kp (p const. for PID) to analog pin 3
-int kipot = 4;      //hook up pot for ki to analog pin 4
-int kdpot = 5;      //hook up pot for kd to analog pin 5
-int motorPin = 10;   //hook up motor controller to digital pin 10
-int sensorPin = 0;  //hook up pressure sensor output to analog pin 0
-//working variables
-boolean newpoint = false;
-double phigh = 1500.0;
-double plow = 0.0;
-double pb = 1230.0; //y intercept if 0V mapped to 0psi
-double vhigh = 0.07874; //voltage from pressure sensor at 5000psi, based on 254ohm resitor used to convert
-double vlow = 0.0156; //voltage from pressure sensor at 0psi, based on 254ohm resitor used to convert
-double voltage;
-double pressure;
-double sensitivity = 1250; //based on 254ohm resitor used to convert 4-20mA in to 1.0-5.0V for 0-5000psi range
-double volt_sum;    //sample voltages many times, then average them
-//PID stuff
-double kp;
-double ki;
-double kd;
-double Input;
-double Output;
-double Setpoint;
-double presetpoint;
-PID myPID(&Input, &Output, &Setpoint, kp, ki, kd, DIRECT);
+#define INPUT_PRESSURE_PIN 0
+#define P_PIN 5
+#define I_PIN 6
+#define D_PIN 7
+#define PWM_PIN 13
+#define POT_BOX_INTERRUPT_ID 0
+#define POT_BOX_INTERRUPT_PIN 2
 
-void setup() {
-  // Initialize the serial port
+#define SETPOINT_PLUS_PIN 25
+#define SETPOINT_MINUS_PIN 24
+#define LOADSENSE_PLUS_PIN 23
+#define LOADSENSE_MINUS_PIN 22
+
+#define DISPLAY_ADDRESS1 0x70 //This is the default address of the OpenSegment with both solder jumpers open
+#define DISPLAY_ADDRESS2 0x72
+
+#define SYSTEM_PRINT_TIME 1000 //ms
+#define INTERRUPT_TIME 1 //ms
+#define SAMPLE_TIME 1 //ms
+
+#define INITIAL_SETPOINT 1500 //psi
+
+double pidInput = 0;
+double pidSetpoint = 0;
+double pidOutput = 0;
+double pidP = 0;
+double pidI = 0;
+double pidD = 0;
+
+boolean changeSetpointFlag = false; //if switch is pressed
+
+unsigned long printTimer = 0;
+boolean serialPrintFlag = false;
+
+MotorController MController(pidInput, pidOutput, pidSetpoint, pidP, pidI, pidD, DIRECT, P_PIN, I_PIN, D_PIN, INPUT_PRESSURE_PIN, PWM_PIN, POT_BOX_INTERRUPT_ID, POT_BOX_INTERRUPT_PIN);
+
+void setup()
+{
   Serial.begin(9600);
+  Wire.begin();
+  Wire.beginTransmission(DISPLAY_ADDRESS1);
+  Wire.write('v');
+  Wire.endTransmission();
+  Wire.beginTransmission(DISPLAY_ADDRESS2);
+  Wire.write('v');
+  Wire.endTransmission();
   
-  // send an intro
-  Serial.println("Welcome to the PID testing code.");
-  delay(1000);
-  Serial.println("Turn on controller when ready");
-  
-  
+  MController.SetSetpoint(INITIAL_SETPOINT);
+  MController.Initialize(SAMPLE_TIME);
+  MsTimer2::set(INTERRUPT_TIME,TimedCommands);
+  MsTimer2::start();
+}//end setup()
 
-  
-//watching to see when switch is flipped
-  while(digitalRead(powerswitch) == LOW) {
-//   Serial.println("Turn on controller when ready");
+void TimedCommands()
+{
+  MController.Calculate();
+  if( (millis()-printTimer) > SYSTEM_PRINT_TIME)
+  {
+    printTimer = millis();
+    serialPrintFlag = true;
   }
-  
-//switch has been fliped, count down to activating PID control
-  if(digitalRead(powerswitch) == HIGH){
-  Serial.println("Activating PID control in");
-//    delay(200);
-  Serial.println("3");
-//    delay(1000);
-  Serial.println("2");
-//    delay(1000);
-  Serial.println("1");
-//    delay(1000);  
-  Serial.println("PID CONTROL ACTIVATING");
-   delay(500);  
-   
- //turn the PID on
-  myPID.SetMode(AUTOMATIC);
+}//end TimedCommands()
 
+void loop()
+{
+  MController.Iterate();
+  Interface();
+  if (serialPrintFlag == true)
+  {
+    Print_Info_Seg();
+    Print_Info_Ser();
+    serialPrintFlag = false;
   }
-  
-  //read voltage at high pressure 
-  //while(newpoint == true && digitalRead(powerswitch) == LOW){
-    //vhigh = analogRead(sensorPin);
-  //}
-  //Serial.println("Calculating...");
- // sensitivity = (phigh-plow)/(vhigh-vlow);
-  //delay(2000);
-  //Serial.println("Sensitivity: ");
-  //Serial.print(sensitivity*1023/5);
-  //Serial.println(" psi/V");
-  //Serial.println("Monitoring pressure...");
+}//end loop()
+
+void Print_Info_Ser()
+{
+  Serial.print("P:");Serial.println(MController.GetP());
+  Serial.print("I:");Serial.println(MController.GetI());
+  Serial.print("D:");Serial.println(MController.GetD());
+  Serial.print("In:");Serial.println(MController.GetInput());
+  Serial.print("Set:");Serial.println(MController.GetSetpoint());
+  Serial.print("Out:");Serial.println(MController.GetOutput());
+}//end Print_Info()
+
+void Print_Info_Seg()
+{
+  WriteValue(DISPLAY_ADDRESS1, MController.GetInput());
+  WriteValue(DISPLAY_ADDRESS2, MController.GetSetpoint());
 }
 
-void loop() {
-  //Read voltage across resistor to get pressure reading
-  volt_sum = 0.0;
-  for(int i=0;i<20;i++){
-    volt_sum = volt_sum + analogRead(sensorPin);
-  }
-  //average voltage reading
-  voltage = volt_sum/20*5/1023;
-  //convert voltage to pressure
-  pressure = voltage*2*sensitivity - pb;
+void WriteValue(int address, double value)
+{
+  int truncatedValue = (int)value;
   
-  //here we set the PID values to the current values of each pot
-  //thus, the PID constant values are updated every single loop()
-  //if this is slow or unneeded, move this to the setup()
-  kp = analogRead(kppot)/50;//desensitized by 50x
-  ki = analogRead(kipot)/50;//desensitized by 50x
-  kd = analogRead(kdpot)/50;//desensitized by 50x 
-  myPID.SetTunings(kp, ki, kd);
-  
-  //do PID stuff
-  Setpoint = analogRead(targetpot)*4.8875/2;//divided by 2 to reduce range to 0-2500psi;;
-  Input = pressure;//analogRead(sensorPin);
-  myPID.Compute();
-  
-  analogWrite(motorPin, Output);
-  
-  /*
-  Serial.print("The voltage across the resistor is ");
-  Serial.print(voltage*5/1023);
-  Serial.println(" V");
-  Serial.print("The pressure is ");
-  Serial.print(pressure);
-  Serial.println(" psi");
-  */
- // Serial.print("Target pressure: ");
- // Serial.print(Setpoint);
- // Serial.println(" psi");
-  Serial.print("Sensor pressure: ");
-  Serial.println(pressure);
- // Serial.println(" psi");
- // Serial.print("Sensor voltage: ");
- // Serial.print(voltage); 
- // Serial.println(" V");
- // Serial.println();
- // delay(1000);
+  Wire.beginTransmission(address);
+  Wire.write(0x79);
+  Wire.write(0x00);
+  Wire.write(truncatedValue/1000);
+  truncatedValue %= 1000;
+  Wire.write(truncatedValue/100);
+  truncatedValue %= 100;
+  Wire.write(truncatedValue/10);
+  truncatedValue %= 10;
+  Wire.write(truncatedValue);
+  Wire.endTransmission();
 }
+
+void Interface()
+{
+  //for setpoint switches
+  if( changeSetpointFlag == false && digitalRead(SETPOINT_PLUS_PIN) == HIGH )
+  {
+    MController.AddToSetpoint(50);
+    changeSetpointFlag = true;
+  }
+  else if( changeSetpointFlag == false && digitalRead(SETPOINT_MINUS_PIN) == HIGH )
+  {
+    MController.AddToSetpoint(-50);
+    changeSetpointFlag = true;
+  }
+  else if(digitalRead(SETPOINT_PLUS_PIN) == LOW && digitalRead(SETPOINT_MINUS_PIN) == LOW)
+  {
+    changeSetpointFlag = false;
+  }
+}//end Interface()
 
 

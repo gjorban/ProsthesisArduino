@@ -1,4 +1,4 @@
-#include "Motor_Controller_2.h"
+#include "Motor_Controller.h"
 
 MotorController* MotorController::sMotorCont=NULL;
 
