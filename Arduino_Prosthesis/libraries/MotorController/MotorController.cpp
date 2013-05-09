@@ -1,4 +1,4 @@
-#include "Motor_Controller_2.h"
+#include "MotorController.h"
 
 MotorController* MotorController::sMotorCont=NULL;
 
@@ -54,7 +54,7 @@ void MotorController::WrapperForMarkConnectionDirty()
   sMotorCont->MarkConnectionDirty();
 }//end WrapperForMarkConnectionDirty()
 
-void MotorController::Iterate()
+void MotorController::UpdateState()
 {
   mcInput = GetPressure(mcInputPin);
   
